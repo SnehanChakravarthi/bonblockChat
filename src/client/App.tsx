@@ -15,13 +15,25 @@ interface TimeFrameData {
   fromDate: string;
   toDate: string;
   data: number | null;
-  ftlData: any; // Adjust the type according to your actual data structure
+  ftlData: any;
 }
 
 interface Message {
   text: string;
   sender: 'user' | 'bot';
 }
+
+const categories = [
+  { key: 'SHIPMENTS', text: 'Show me info about Shipments' },
+  { key: 'RECEIPTS', text: 'Show me info about receipts' },
+  { key: 'RETURNS', text: 'Show me info about returns' },
+];
+
+const timeFrames = [
+  { key: 'today', text: 'Show me for today' },
+  { key: 'last7days', text: 'Show me for last 7 days' },
+  { key: 'last30days', text: 'Show me for last 30 days' },
+];
 
 function App() {
   const [isChatbotOpen, setIsChatbotOpen] = useState<boolean>(true);
@@ -35,83 +47,67 @@ function App() {
   const [timeFrame, setTimeFrame] = useState<string>('');
   const [apiData, setApiData] = useState<ApiDataItem[]>([]);
 
-  // Step 1 choices
-  const categories = [
-    { id: 1, text: 'Show me info about Shipments' },
-    { id: 2, text: 'Show me info about receipts' },
-    { id: 3, text: 'Show me info about returns' },
-  ];
+  const handleCategorySelect = (selectedCategoryKey: string) => {
+    const categoryText =
+      categories.find((c) => c.key === selectedCategoryKey)?.text || '';
 
-  // Step 2 choices
-  const timeFrames = [
-    { id: 1, text: 'Show me for today' },
-    { id: 2, text: 'Show me for last 7 days' },
-    { id: 3, text: 'Show me for last 30 days' },
-  ];
-
-  const handleCategorySelect = (selectedCategoryText: string) => {
-    setCategory(selectedCategoryText);
-    console.log(selectedCategoryText);
+    setCategory(selectedCategoryKey);
+    console.log(categoryText);
     setMessages((prev) => [
       ...prev,
-      { text: selectedCategoryText, sender: 'user' },
+      { text: categoryText, sender: 'user' },
       { text: 'Choose the time range', sender: 'bot' },
     ]);
-    fetchData(selectedCategoryText);
-    setStep(2); // Move to next step
+    fetchData(selectedCategoryKey);
+    setStep(2);
   };
 
-  const handleTimeFrameSelect = (selectedTimeFrame: string) => {
-    setTimeFrame(selectedTimeFrame);
+  const handleTimeFrameSelect = (selectedTimeFrameKey: string) => {
+    setTimeFrame(selectedTimeFrameKey);
+    const timeFrameText =
+      timeFrames.find((t) => t.key === selectedTimeFrameKey)?.text || '';
+
+    // Assuming 'category' state is set to something like 'SHIPMENTS' and you want it more readable
+    const readableCategory =
+      categories
+        .find((c) => c.key === category)
+        ?.text.replace('Show me info about ', '') || category;
+
+    // Adjusting the time frame text for the intro message
+    const readableTimeFrame = timeFrameText.replace('Show me for ', '');
+
+    const introMessage = `Here are the ${readableCategory} data for ${readableTimeFrame}`;
+
     setMessages((prev) => [
       ...prev,
-      { text: selectedTimeFrame, sender: 'user' },
+      { text: timeFrameText, sender: 'user' },
+      { text: introMessage, sender: 'bot' },
     ]);
 
-    const timeFrameMapping: {
-      [key: string]: keyof TimeFrameData | undefined | string;
-    } = {
-      'Show me for today': 'today',
-      'Show me for last 7 days': 'last7days',
-      'Show me for last 30 days': 'last30days',
-    };
+    addDataMessages(selectedTimeFrameKey);
+  };
 
-    const apiDataKey = timeFrameMapping[selectedTimeFrame];
-    if (!apiDataKey) {
-      console.error('Invalid time frame selected');
-      return;
-    }
-
-    // Iterate over the API data to extract and display the relevant information
-    const relevantDataMessages = apiData.flatMap((item): Message[] =>
-      item.range.flatMap((range): Message[] => {
+  const addDataMessages = (apiDataKey: string) => {
+    // This part remains largely unchanged, but ensure it uses the optimized logic for constructing messages
+    const relevantDataMessages = apiData.flatMap((item) =>
+      item.range.flatMap((range) => {
         const timeData = range[apiDataKey as keyof typeof range];
-        if (!timeData) return []; // Skip if no data for this time frame
+        if (!timeData) return [];
 
-        // Constructing the message text
-        const messageText = `${item.label}, ${item.event}, Data: ${
+        const messageText = `${item.label}, Data: ${
           timeData.data ?? 'No data'
         }`;
-        return [
-          {
-            text: messageText,
-            sender: 'bot',
-          } as Message,
-        ];
+        return [{ text: messageText, sender: 'bot' as 'user' | 'bot' }];
       })
     );
 
+    // Add the detailed data messages in one go
     setMessages((prevMessages) => [...prevMessages, ...relevantDataMessages]);
   };
 
-  const fetchData = async (category: string) => {
-    const categoryToStatsMap: Record<string, string> = {
-      'Show me info about Shipments': 'SHIPMENTS',
-      'Show me info about receipts': 'RECEIPTS',
-      'Show me info about returns': 'RETURNS',
-    };
-
-    const stats = categoryToStatsMap[category] || 'SHIPMENTS';
+  const fetchData = async (selectedCategoryKey: string) => {
+    const stats =
+      categories.find((c) => c.key === selectedCategoryKey)?.key || 'SHIPMENTS';
 
     try {
       const response = await fetch(
@@ -241,8 +237,8 @@ function App() {
                       <div className="space-y-1 w-full flex flex-col">
                         {categories.map((category) => (
                           <button
-                            key={category.id}
-                            onClick={() => handleCategorySelect(category.text)}
+                            key={category.key}
+                            onClick={() => handleCategorySelect(category.key)}
                             className="border self-end  px-2 py-1 bg-white text-black border-neutral-300 rounded-lg  transition-all duration-100 hover:font-semibold"
                           >
                             {category.text}
@@ -254,10 +250,8 @@ function App() {
                       <div className="space-y-1 w-full flex flex-col">
                         {timeFrames.map((timeFrame) => (
                           <button
-                            key={timeFrame.id}
-                            onClick={() =>
-                              handleTimeFrameSelect(timeFrame.text)
-                            }
+                            key={timeFrame.key}
+                            onClick={() => handleTimeFrameSelect(timeFrame.key)}
                             className="border self-end  px-2 py-1 bg-white text-black border-neutral-300 rounded-lg  transition-all duration-100 hover:font-semibold"
                           >
                             {timeFrame.text}
