@@ -33,7 +33,10 @@ function Login({
   };
 
   return (
-    <form onSubmit={handleSubmit} className="flex flex-col p-4 space-y-2">
+    <form
+      onSubmit={handleSubmit}
+      className="flex flex-col p-4 w-full space-y-2"
+    >
       <input
         type="text"
         className="border rounded-md p-1"

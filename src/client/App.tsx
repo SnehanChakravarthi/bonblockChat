@@ -1,5 +1,6 @@
 import { SetStateAction, useEffect, useRef, useState } from 'react';
 import Login from './Login';
+const apiUrl = import.meta.env.VITE_API_BASE_URL;
 
 interface ApiDataItem {
   label: string;
@@ -46,6 +47,7 @@ function App() {
   const [category, setCategory] = useState<string>('');
   const [timeFrame, setTimeFrame] = useState<string>('');
   const [apiData, setApiData] = useState<ApiDataItem[]>([]);
+  const [emailDataDetails, setEmailDataDetails] = useState<string[]>([]);
 
   const handleCategorySelect = (selectedCategoryKey: string) => {
     const categoryText =
@@ -85,10 +87,10 @@ function App() {
     ]);
 
     addDataMessages(selectedTimeFrameKey);
+    setStep(3);
   };
 
   const addDataMessages = (apiDataKey: string) => {
-    // This part remains largely unchanged, but ensure it uses the optimized logic for constructing messages
     const relevantDataMessages = apiData.flatMap((item) =>
       item.range.flatMap((range) => {
         const timeData = range[apiDataKey as keyof typeof range];
@@ -101,8 +103,9 @@ function App() {
       })
     );
 
-    // Add the detailed data messages in one go
     setMessages((prevMessages) => [...prevMessages, ...relevantDataMessages]);
+    const emailContent = relevantDataMessages.map((message) => message.text);
+    setEmailDataDetails(emailContent);
   };
 
   const fetchData = async (selectedCategoryKey: string) => {
@@ -138,6 +141,8 @@ function App() {
     if (step === 2) {
       setTimeFrame('');
       setStep(1);
+    } else if (step === 3) {
+      setStep(2);
     }
   };
 
@@ -172,6 +177,49 @@ function App() {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
+  const generateForEmail = async () => {
+    const compiledData = {
+      category: category,
+      timeFrame: timeFrame,
+      dataDetails: emailDataDetails,
+    };
+
+    const emailTemplate =
+      'Generate a professional email based on the following email. \n\n' +
+      'Dear Sir/Madam, \n\nI am writing to inform you that the data for the ' +
+      compiledData.category +
+      ' for the ' +
+      compiledData.timeFrame +
+      ' is as follows: \n\n' +
+      compiledData.dataDetails.join('\n') +
+      '\n\nThank you. \n\nSincerely, \n\nYour Name Here';
+
+    console.log(emailTemplate);
+
+    try {
+      const response = await fetch(`${apiUrl}/generate-email`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ data: emailTemplate }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Network response was not ok');
+      }
+
+      const result = await response.json();
+      console.log(result.generatedEmail);
+      setMessages((prev) => [
+        ...prev,
+        { text: result.generatedEmail, sender: 'bot' },
+      ]);
+    } catch (error) {
+      console.error('Error:', error);
+    }
+  };
+
   return (
     <div className="fixed bottom-10 right-10">
       <div
@@ -192,7 +240,7 @@ function App() {
         </svg>
       </div>
       {!isChatbotOpen && (
-        <div className="h-auto rounded-2xl border-yellow-500 text-sm shadow-md shadow-yellow-800/40 mb-10 w-96 border absolute bottom-0 right-0 flex flex-col overflow-hidden">
+        <div className="h-[80vh] rounded-2xl border-yellow-500 text-sm shadow-md shadow-yellow-800/40 mb-10 w-96 border absolute bottom-0 right-0 flex flex-col overflow-hidden">
           <div className="bg-yellow-500 h-auto py-1 flex flex-col justify-center">
             <svg
               width="16"
@@ -206,15 +254,18 @@ function App() {
             </svg>
           </div>
           {!isLoggedIn ? (
-            <Login onLoginSuccess={handleLoginSuccess} />
+            <div className="w-full bg-yellow-50 flex-col h-full flex justify-center items-center ">
+              Please login to continue
+              <Login onLoginSuccess={handleLoginSuccess} />
+            </div>
           ) : (
             <>
-              <div className="bg-yellow-50">
-                <div className="h-96 p-4 overflow-scroll space-y-3 flex flex-col ">
+              <div className="bg-yellow-50 transition-all duration-100 ">
+                <div className="h-[60vh] p-4 overflow-scroll space-y-3 flex flex-col ">
                   {messages.map((msg, index) =>
                     msg.sender === 'bot' ? (
                       <div key={index} className="w-4/5">
-                        <p className="px-2 py-1 bg-yellow-400 border w-fit border-yellow-500 rounded-lg">
+                        <p className="px-2 py-1 bg-yellow-400 border w-fit border-yellow-500 rounded-lg text-pretty whitespace-pre">
                           {msg.text}
                         </p>
                       </div>
@@ -231,7 +282,7 @@ function App() {
                   )}
                   <div ref={messagesEndRef} />
                 </div>
-                <div className="px-4 py-2 space-y-1  border-t w-full flex flex-col items-end *:cursor-pointer ">
+                <div className="px-4 py-2 space-y-1 bg-white transition-all duration-100 border-t w-full flex flex-col items-end *:cursor-pointer ">
                   <div>
                     {step === 1 && (
                       <div className="space-y-1 w-full flex flex-col">
@@ -239,7 +290,7 @@ function App() {
                           <button
                             key={category.key}
                             onClick={() => handleCategorySelect(category.key)}
-                            className="border self-end  px-2 py-1 bg-white text-black border-neutral-300 rounded-lg  transition-all duration-100 hover:font-semibold"
+                            className="border self-end  px-2 py-1 bg-yellow-50 text-black border-neutral-300 rounded-lg  transition-all duration-100 hover:font-semibold"
                           >
                             {category.text}
                           </button>
@@ -252,14 +303,30 @@ function App() {
                           <button
                             key={timeFrame.key}
                             onClick={() => handleTimeFrameSelect(timeFrame.key)}
-                            className="border self-end  px-2 py-1 bg-white text-black border-neutral-300 rounded-lg  transition-all duration-100 hover:font-semibold"
+                            className="border self-end  px-2 py-1 bg-yellow-50 text-black border-neutral-300 rounded-lg  transition-all duration-100 hover:font-semibold"
                           >
                             {timeFrame.text}
                           </button>
                         ))}
                         <button
                           onClick={goBack}
-                          className="border self-end  px-2 py-1 bg-white text-black border-neutral-300 rounded-lg  transition-all duration-100 hover:font-semibold"
+                          className="border self-end  px-2 py-1 bg-yellow-50 text-black border-neutral-300 rounded-lg  transition-all duration-100 hover:font-semibold"
+                        >
+                          Go Back
+                        </button>
+                      </div>
+                    )}
+                    {step === 3 && (
+                      <div className="space-y-1 w-full flex flex-col">
+                        <button
+                          className="border self-end px-2 py-1 bg-yellow-50 text-black border-neutral-300 rounded-lg  transition-all duration-100 hover:font-semibold"
+                          onClick={() => generateForEmail()}
+                        >
+                          Generate Email
+                        </button>
+                        <button
+                          onClick={goBack}
+                          className="border self-end  px-2 py-1 bg-yellow-50 text-black border-neutral-300 rounded-lg  transition-all duration-100 hover:font-semibold"
                         >
                           Go Back
                         </button>
@@ -268,7 +335,7 @@ function App() {
                   </div>
                 </div>
               </div>
-              <div className="flex flex-row justify-between w-full h-20 border-t">
+              {/* <div className="flex flex-row justify-between w-full h-20 border-t">
                 <textarea
                   className="p-2 h-full w-full"
                   onKeyDown={(e) => {
@@ -293,7 +360,7 @@ function App() {
                     clip-rule="evenodd"
                   />
                 </svg>
-              </div>
+              </div> */}
             </>
           )}
         </div>
